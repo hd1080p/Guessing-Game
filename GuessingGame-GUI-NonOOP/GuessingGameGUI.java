@@ -1,23 +1,28 @@
-package gui;
+package homework4;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.concurrent.Semaphore;
+
 import javax.swing.BoxLayout;
 import javax.swing.JPanel;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JButton;
-import core.*;
+import javax.swing.JComponent;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 
 //Harris Dizdarevic
-public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
+public class GuessingGameGUI implements ActionListener {
+    private int limit;
+    private int maxInt;
+    private int minInt;
+    private int target;
+    private int attempts;
+
 
     private int[] history;
-    private Configuration config;
-    private RandomChooser rand;
-    private int attempts;
-    private Semaphore sem;
 
     // These components are members so they can be modified from the
     // `actionPerformed` method.
@@ -30,55 +35,15 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
 
 
 
-    public GuessingGameGUI(Configuration config, RandomChooser rand)
+	public GuessingGameGUI(int limit, int maxInt, int target, int minInt)
     {
-        //instantiates a history of guesses
-        history = new int[config.getMaxNumber()];
-        attempts = 1;
-        //only one thread will be acquired at a time
-        sem = new Semaphore(1);
-        this.config = config;
-        this.rand = rand;
-    }
+        this.limit = limit;
+        this.maxInt = maxInt;
+        this.minInt = minInt;
+        this.target = target;
+        attempts = 1;             //Each instance of the Guessing Game will have an attempts start at 1
+        history = new int[limit]; //In case you want to change the limit of guesses, this is here to accommodate that
 
-    public void win(){
-        feedbackLabel.setText("You Win!!");
-        submit.setEnabled(false);
-    }
-
-    public void lose(){
-        feedbackLabel.setText("You Lose!!");
-        submit.setEnabled(false);
-    }
-
-    public void tooLow(int guess){
-        feedbackLabel.setText("This number is too low!");
-    }
-
-    public void tooHigh(int guess){
-        feedbackLabel.setText("This number is too high!");
-    }
-
-    public int nextGuess(){
-        try {
-            sem.acquire();
-        }catch(InterruptedException ie){
-            //do w/e
-        }
-
-        synchronized (this) {
-            String guess = guessNumberLabel.getText();
-            while (true) {
-                try {
-                    int val = Integer.parseInt(guess);
-                    sem.release();
-                    return val;
-                } catch (Exception ex) {
-                    feedbackLabel.setText("Not a Valid Guess");
-                    guessNumberLabel.setText("0");
-                }
-                }
-            }
     }
 
     private void handleBS()
@@ -94,20 +59,21 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
 
     private void handleSubmit()
     {
-        try {
-            int value = this.nextGuess();
-            /*
-            This is before checking history because initially the array has values of 0, which will
-            cause it to print out the message "You have already guessed this number" when 0 is an invalid guess.
-            Another possible way to do this is to have the submit button disabled until a value other than 0 is
-            pressed.
-            */
+        String text = guessNumberLabel.getText();
 
-            if(value == 0 || value > config.getMaxNumber())
+        try {
+            int value = Integer.parseInt(text);
+
+            /*This is before checking history because initially the array has values of 0, which will
+              cause it to print out the message "You have already guessed this number" when 0 is an invalid guess.
+              Another possible way to do this is to have the submit button disabled until a value other than 0 is
+              pressed.*/
+
+            if(value == 0 || value > maxInt)
                 throw new NumberFormatException();
 
-            // Can't put this in compareGuesses because same guess will count as an attempt.
-            // Do not want to count previous guesses as an attempt
+            //Cant put this in compareGuesses because same guess will count as an attempt.
+            //Do not want to count previous guesses as an attempt
             if (history_of_guesses(history, value, attempts)) {
                 feedbackLabel.setText(String.format("%-10s", "You have already guessed this number"));
                 return;
@@ -119,7 +85,8 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
 
         } catch (NumberFormatException ex) {
             // Ignore integer parse exception...
-            feedbackLabel.setText("Not in range!!!"); //Domain: [1,16]
+            // What can cause this exception to be thrown?
+            feedbackLabel.setText("You're Dumb! Not in range!!!");//Domain: [1,16]
             guessNumberLabel.setText("0");
         }
 
@@ -127,13 +94,15 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
 
     //The Logic for handleSubmit
     private void compareGuesses(int input){
-        IChooser.ComparisonResult result = rand.checkGuess(input);
-        if(result == IChooser.ComparisonResult.TooHigh)
-            feedbackLabel.setText("Guess is too High!");
-        else if(result == IChooser.ComparisonResult.TooLow)
-            feedbackLabel.setText("Guess is too Low!");
-        else
-            this.win();
+        if(input > target)
+            feedbackLabel.setText(String.format("%29s", "Too High!"));
+        else if(input < target)
+            feedbackLabel.setText(String.format("%28s", "Too Low!"));
+        else {
+            feedbackLabel.setText(String.format("%28s", "You Win!!"));
+            submit.setEnabled(false);
+        }
+
 
         history[attempts - 1] = input;
         attempts++;
@@ -141,10 +110,11 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
         //Increments number of attempts in the Label
         attemptLabel.setText("Attempts: " + Integer.toString(attempts));
 
-        if(attempts > config.getAllowedGuesses()) {
+        if(attempts > limit) {
             feedbackLabel.setText(String.format("%30s", "You Have Guessed too many times!!"));
             submit.setEnabled(false);
         }
+
         //Resets the number rather than the user having to annoyingly press Backspace to clear the input.
         guessNumberLabel.setText("0");
     }
@@ -163,62 +133,74 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
         String text = guessNumberLabel.getText();
         backSpace.setEnabled(true);
 
-        if (text.equals("0"))
+        if (text.equals("0")) {
             text = "";
 
+        }
         text += Integer.toString(value);
         guessNumberLabel.setText(text);
     }
 
-    public void actionPerformed(ActionEvent e) {
+    public void actionPerformed(ActionEvent e)
+    {
+        // You can "debug" your code by printing to stdout.
+        // If you are using eclipse, the results will be written to the eclipse
+        // log console.
+        //
+        // This command is printing out the action command for the button that
+        // was pressed.
         System.out.println(e.getActionCommand());
 
         try {
             int value = Integer.parseInt(e.getActionCommand());
             handleNumber(value);
             return;
-        } catch (NumberFormatException ex) { } // Do nothing
+        } catch (NumberFormatException ex) {
+            // Ignore integer parse exception...
+            // This happens when "submit" or "BS" is pressed.
+        }
 
+        // Is it the backspace button?
         if (e.getActionCommand().equals("BS")) {
             handleBS();
             return;
         }
 
+        // Is it the submit button?
         if (e.getActionCommand().equals("submit")) {
             handleSubmit();
             return;
         }
-
-
     }
+
     private JFrame createFrame()
     {
         JFrame frame = new JFrame("The Guessing Game!");
         frame.setMinimumSize(new Dimension(600, 400));
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(
-                new BoxLayout(
-                        frame.getContentPane(),
-                        BoxLayout.Y_AXIS)
+        	new BoxLayout(
+        		frame.getContentPane(),
+        		BoxLayout.Y_AXIS)
         );
 
         return frame;
     }
 
     private JLabel createMainLabel() {
-        JLabel mainLabel = new JLabel();
-        mainLabel.setText(
-                String.format("%-150s","Guess a number between 1 and " + Integer.toString(config.getMaxNumber())));
+    	JLabel mainLabel = new JLabel();
+    	mainLabel.setText(
+                String.format("%-150s","Guess a number between 1 and " + Integer.toString(this.maxInt)));
         mainLabel.setFont(
-                new Font("Sans", Font.PLAIN ,22));
+        	new Font("Sans", Font.PLAIN ,22));
 
         return mainLabel;
     }
 
     private JLabel createFeedBackLabel() {
-        JLabel feedbackLabel = new JLabel();
+    	JLabel feedbackLabel = new JLabel();
         feedbackLabel.setFont(
-                new Font("Sans", Font.BOLD, 22));
+        	new Font("Sans", Font.BOLD, 22));
         return feedbackLabel;
     }
 
@@ -249,7 +231,7 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
 
     private JPanel createNumberPad()
     {
-        JPanel numberPad = new JPanel(new FlowLayout(FlowLayout.LEADING, 10, 10));
+    	JPanel numberPad = new JPanel(new FlowLayout(FlowLayout.LEADING, 10, 10));
 
         for (int i = 0; i < 10; i++) {
             JButton button = new JButton(Integer.toString(i));
@@ -273,18 +255,20 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
     {
         JButton backSpace = new JButton("Backspace");
         backSpace.setActionCommand("BS");
-
+        // The backspace will start "disabled".
+        // This means you will not be able to click on it until there is
+        // something to erase.
         backSpace.setEnabled(false);
-
+        // Call `this.actionPerformed` when the button is pressed.
         backSpace.addActionListener(this);
         return backSpace;
     }
 
     private JButton createSubmitButton()
     {
-        JButton submit = new JButton("Submit Guess");
+    	JButton submit = new JButton("Submit Guess");
         submit.setActionCommand("submit");
-
+        // Call `this.actionPerformed` when the button is pressed.
         submit.addActionListener(this);
         return submit;
     }
@@ -302,14 +286,17 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
         feedbackLabel = createFeedBackLabel();
         JPanel bottomPanel = createBottomPanel();
         backSpace = createBackSpace();
+
+        // Add the backspace button to the numberPad.
         numberPad.add(backSpace);
 
-        // Add the labels to the bottom panel.
+        // Add submit button and guesslabel to the bottom panel.
         bottomPanel.add(attemptLabel);
+
         bottomPanel.add(submit);
+
         bottomPanel.add(guessTextLabel);
         bottomPanel.add(guessNumberLabel);
-        //bottomPanel.add(guessLabel);
 
         // Add the components to the window.
         window.add(mainLabel);
