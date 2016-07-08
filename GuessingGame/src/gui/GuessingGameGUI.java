@@ -63,7 +63,7 @@ public class GuessingGameGUI implements ActionListener, IClient, IGuesser {
         try {
             sem.acquire();
         }catch(InterruptedException ie){
-            //do w/e
+            //do nothing
         }
 
         synchronized (this) {
